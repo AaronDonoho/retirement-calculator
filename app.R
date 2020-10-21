@@ -1,5 +1,6 @@
 
 library(shiny)
+library(shinythemes)
 library(lubridate)
 library(ggplot2)
 library(reshape2)
@@ -8,21 +9,20 @@ library(scales)
 library(glue)
 
 n = 150
-growth = 7.0
 
 info = 
-glue::glue("Assumptions:\n
-  {growth}% annual growth with some random variance within a normal distribution.
+glue::glue(
+"Assumptions:
+  Growth has some random variance within a normal distribution
+  Value is always expressed in today's terms
   {n} simulations are run
-  Dollars are assumed to remain constant in terms of real value;
-  inflation need not be considered by the user.
 ")
 
-nextMonth = function(investmentsByMonth) {
+nextMonth = function(investmentsByMonth, growth) {
   investmentsByMonth * (1 + (growth/100)) ^ (1/12) * rnorm(1, 1, 0.04)
 }
 
-simulateInvestments = function(initial, investments, monthsToRetire) {
+simulateInvestments = function(initial, investments, monthsToRetire, growth) {
   investmentsSumTable = list()
   
   for (x in 1:n) {
@@ -30,7 +30,7 @@ simulateInvestments = function(initial, investments, monthsToRetire) {
     investmentsSum = c(initial)
     for (month in 1:length(monthsToRetire)) {
       investmentsByMonth = c(investmentsByMonth, investments)
-      investmentsByMonth = nextMonth(investmentsByMonth)
+      investmentsByMonth = nextMonth(investmentsByMonth, growth)
       investmentsSum = c(investmentsSum, sum(investmentsByMonth))
     }
     investmentsSumTable[[x]] = investmentsSum
@@ -44,22 +44,28 @@ simulateInvestments = function(initial, investments, monthsToRetire) {
 }
 
 ui <- fluidPage(
+  theme = shinytheme('yeti'),
   inputPanel( 
     dateInput('startDate', 'Current Date'),
     dateInput('endDate', 'Retirement Date', value = "2049-12-31"),
     numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
     numericInput('initialSavings', 'Initial Savings (-Debt)', 0),
     numericInput('investments', 'Monthly Investments', 0, min = 0),
-    numericInput('savings', 'Monthly Savings', 0, min = 0)
+    numericInput('savings', 'Monthly Savings', 0, min = 0),
+    sliderInput('growth', 'Investment Annual Growth',
+                min = 0, max = 10, value = 7, step = 0.1, post = '%')
   ),
-  h4(verbatimTextOutput('investmentsAtRetirement')),
-  h4(verbatimTextOutput('savingsAtRetirement')),
+  verbatimTextOutput('investmentsAtRetirement'),
+  verbatimTextOutput('savingsAtRetirement'),
   plotOutput('investmentGrowth'),
-  h5(verbatimTextOutput('info'))
+  verbatimTextOutput('info')
 )
 
 server <- function(input, output) {
-  simulatedInvestments = reactive({simulateInvestments(input$initialInvestments, input$investments, monthsToRetire())}) %>% debounce(1500)
+  
+  simulatedInvestments = reactive({
+    simulateInvestments(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
+  }) %>% debounce(1500)
   
   monthsToRetire = reactive({
     req(input$endDate > input$startDate)
@@ -69,7 +75,7 @@ server <- function(input, output) {
   output$savingsAtRetirement = function() {
     req(input$initialSavings, input$savings, monthsToRetire())
     paste0("savings at retirement: $",
-          (input$initialSavings + (length(monthsToRetire()) - 1) * input$savings)  %>% format(big.mark=",")
+          (input$initialSavings + (length(monthsToRetire()) - 1) * input$savings) %>% format(big.mark=",")
     )
   }
   
