@@ -24,6 +24,9 @@ Assumptions:
 ")
 
 nextMonth = function(investments, growthPercent) {
+  if (investments <= 1) {
+    return(0)
+  }
   growthRate = growthPercent / 100
   investments * rnorm(1, (1 + growthRate), growthRate * 2) ^ (1/12) 
 }
@@ -34,17 +37,17 @@ simulateInvestments = function(initial, investments, monthCount, growth) {
   for (x in 1:n) {
     investmentsByMonth = c(initial)
     investmentsSum = c(initial)
-    for (month in 1:length(monthCount)) {
-      investmentsByMonth = c(investmentsByMonth, investments)
-      investmentsByMonth = nextMonth(investmentsByMonth, growth)
-      investmentsSum = c(investmentsSum, sum(investmentsByMonth))
+    for (month in 1:monthCount) {
+      investmentsSum[length(investmentsSum)] = last(investmentsSum) + investments
+      nextMonth = nextMonth(last(investmentsSum), growth)
+      investmentsSum = c(investmentsSum, nextMonth)
     }
     investmentsSumTable[[x]] = investmentsSum
   }
   
   z = data.frame(investmentsSumTable)
   colnames(z) = seq(1, n)
-  z = cbind(z, time=0:length(monthCount))
+  z = cbind(z, time=0:monthCount)
   z = melt(z, id.vars='time')
   return(z)
 }
@@ -55,7 +58,7 @@ simulateExpenses = function(initial, expenses, monthCount, growth) {
   for (i in 1:length(initial)) {
     investmentsSum = c(initial[i])
     for (month in 1:monthCount) {
-      investmentsSum[length(investmentsSum)] = last(investmentsSum) - expenses
+      investmentsSum[length(investmentsSum)] = max(0, last(investmentsSum) - expenses)
       nextMonth = nextMonth(last(investmentsSum), growth)
       investmentsSum = c(investmentsSum, nextMonth)
     }
@@ -89,7 +92,8 @@ ui <- fluidPage(
                 min = 0, max = 100, value = 30, step = 1, post = 'years')
   ),
   h3('Investment draw down after retirement'),
-  plotOutput('retirement')
+  plotOutput('retirement'),
+  verbatimTextOutput('epitaph')
 )
 
 server <- function(input, output) {
@@ -100,7 +104,7 @@ server <- function(input, output) {
   })
   
   simulatedRetirement = reactive({
-    req(input$expenses, input$retirementLength, input$growth)
+    req(input$expenses, input$retirementLength)
     initial = simulatedInvestments() %>%
       filter(time == max(time)) %>%
       select(value) %>%
@@ -112,7 +116,7 @@ server <- function(input, output) {
   
   simulatedInvestments = reactive({
     req(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
-    simulateInvestments(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
+    simulateInvestments(input$initialInvestments, input$investments, length(monthsToRetire()), input$growth)
   }) %>% debounce(1500)
   
   output$investmentsAtRetirement = function() {
@@ -148,6 +152,23 @@ server <- function(input, output) {
       theme_bw() +
       theme(legend.position="none")
   })
+  
+  output$epitaph = function() {
+    s = simulatedRetirement() %>%
+      group_by(variable) %>%
+      filter(time == max(time)) %>%
+      dplyr::ungroup() %>%
+      select(value)
+    q = quantile(s$value, c(0.1, 0.5, 0.9))
+    s %<>% t() %>% as.vector()
+    pass_percent = (sum(s > 0) / length(s)) %>% round(2)
+      
+    paste0("simulated investments at end of retirement",
+           "\n10th percentile: $", q[1] %>% round() %>% format(big.mark=","),
+           "\n50th percentile: $", q[2] %>% round() %>% format(big.mark=","),
+           "\n90th percentile: $", q[3] %>% round() %>% format(big.mark=","),
+           "\n", pass_percent * 100, "% of simulations had money remaining at the end")
+  }
   
   output$info = function() {
     info
