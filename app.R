@@ -75,14 +75,11 @@ ui <- fluidPage(
   inputPanel( 
     dateInput('startDate', 'Current Date'),
     dateInput('endDate', 'Retirement Date', value = "2049-12-31"),
-    numericInput('initialSavings', 'Initial Savings (-Debt)', 0),
-    numericInput('savings', 'Monthly Savings', 0, min = 0),
     numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
     numericInput('investments', 'Monthly Investments', 0, min = 0),
     sliderInput('growth', 'Investment Annual Growth',
                 min = 0, max = 10, value = 7, step = 0.1, post = '%')
   ),
-  verbatimTextOutput('savingsAtRetirement'),
   verbatimTextOutput('investmentsAtRetirement'),
   h3('Investment growth prior to retirement'),
   plotOutput('investmentGrowth'),
@@ -117,16 +114,6 @@ server <- function(input, output) {
     req(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
     simulateInvestments(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
   }) %>% debounce(1500)
-  
-  simulatedSavings = reactive({
-    req(input$initialSavings, input$savings, monthsToRetire())
-    (input$initialSavings + (length(monthsToRetire()) - 1) * input$savings)
-  }) %>% debounce(1500)
-  
-  output$savingsAtRetirement = function() {
-    paste0("savings at retirement: $", simulatedSavings() %>% format(big.mark=",")
-    )
-  }
   
   output$investmentsAtRetirement = function() {
     i = simulatedInvestments() %>%
