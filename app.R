@@ -14,12 +14,14 @@ info =
 glue::glue(
 "Assumptions:
   Growth has some random variance within a normal distribution
+  Higher growth means higher risk; this results in a wider spread in simulations
   Value is always expressed in today's terms
   {n} simulations are run
 ")
 
-nextMonth = function(investmentsByMonth, growth) {
-  investmentsByMonth * rnorm(1, (1 + growth/100), growth/50) ^ (1/12) 
+nextMonth = function(investmentsByMonth, growthPercent) {
+  growthRate = growthPercent / 100
+  investmentsByMonth * rnorm(1, (1 + growthRate), growthRate * 2) ^ (1/12) 
 }
 
 simulateInvestments = function(initial, investments, monthsToRetire, growth) {
@@ -48,34 +50,38 @@ ui <- fluidPage(
   inputPanel( 
     dateInput('startDate', 'Current Date'),
     dateInput('endDate', 'Retirement Date', value = "2049-12-31"),
-    numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
     numericInput('initialSavings', 'Initial Savings (-Debt)', 0),
-    numericInput('investments', 'Monthly Investments', 0, min = 0),
     numericInput('savings', 'Monthly Savings', 0, min = 0),
+    numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
+    numericInput('investments', 'Monthly Investments', 0, min = 0),
     sliderInput('growth', 'Investment Annual Growth',
                 min = 0, max = 10, value = 7, step = 0.1, post = '%')
   ),
-  verbatimTextOutput('investmentsAtRetirement'),
   verbatimTextOutput('savingsAtRetirement'),
+  verbatimTextOutput('investmentsAtRetirement'),
   plotOutput('investmentGrowth'),
   verbatimTextOutput('info')
 )
 
 server <- function(input, output) {
   
-  simulatedInvestments = reactive({
-    simulateInvestments(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
-  }) %>% debounce(1500)
-  
   monthsToRetire = reactive({
     req(input$endDate > input$startDate)
     seq(from = input$startDate, to = input$endDate, by = 'month')
   })
   
-  output$savingsAtRetirement = function() {
+  simulatedInvestments = reactive({
+    req(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
+    simulateInvestments(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
+  }) %>% debounce(1500)
+  
+  simulatedSavings = reactive({
     req(input$initialSavings, input$savings, monthsToRetire())
-    paste0("savings at retirement: $",
-          (input$initialSavings + (length(monthsToRetire()) - 1) * input$savings) %>% format(big.mark=",")
+    (input$initialSavings + (length(monthsToRetire()) - 1) * input$savings)
+  }) %>% debounce(1500)
+  
+  output$savingsAtRetirement = function() {
+    paste0("savings at retirement: $", simulatedSavings() %>% format(big.mark=",")
     )
   }
   
@@ -97,6 +103,7 @@ server <- function(input, output) {
       ggplot(aes(x=time, y=value, color=variable)) +
       geom_line(alpha=0.4) +
       scale_y_continuous(labels = scales::comma) +
+      scale_x_continuous(expand = c(0, 0)) +
       theme_bw() +
       theme(legend.position="none")
   })
