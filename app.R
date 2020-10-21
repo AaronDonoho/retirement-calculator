@@ -89,7 +89,7 @@ server <- function(input, output) {
     simulatedInvestments() %>%
       group_by(variable) %>%
       ggplot(aes(x=time, y=value, color=variable)) +
-      geom_line() +
+      geom_line(alpha=0.4) +
       scale_y_continuous(labels = scales::comma) +
       theme_bw() +
       theme(legend.position="none")
