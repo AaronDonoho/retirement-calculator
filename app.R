@@ -19,7 +19,7 @@ glue::glue(
 ")
 
 nextMonth = function(investmentsByMonth, growth) {
-  investmentsByMonth * (1 + (growth/100)) ^ (1/12) * rnorm(1, 1, 0.04)
+  investmentsByMonth * rnorm(1, (1 + growth/100), growth/50) ^ (1/12) 
 }
 
 simulateInvestments = function(initial, investments, monthsToRetire, growth) {
