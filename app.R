@@ -1,5 +1,6 @@
 
 library(shiny)
+library(shinyjs)
 library(shinythemes)
 library(dygraphs)
 library(htmlwidgets)
@@ -78,22 +79,30 @@ simulateExpenses = function(initial, expenses, monthCount, growth) {
 
 ui <- fluidPage(
   theme = shinytheme('yeti'),
+  tags$head(
+    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
+  ),
+  useShinyjs(),
   verbatimTextOutput('info'),
-  inputPanel( 
+  inputPanel(
+    align = "center",
     dateInput('startDate', 'Current Date'),
     dateInput('endDate', 'Retirement Date', value = "2049-12-31"),
     numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
-    numericInput('investments', 'Monthly Investments', 0, min = 0),
+    numericInput('investments', 'Monthly Contributions', 0, min = 0),
     sliderInput('growth', 'Investment Annual Growth',
-                min = 0, max = 10, value = 7, step = 0.1, post = '%')
+                min = 0, max = 10, value = 7, step = 0.1, post = '%'),
+    actionButton('simulateClick', 'Simulate Contributions', style = "vertical-align: 'middle'")
   ),
   verbatimTextOutput('investmentsAtRetirement'),
   dygraphOutput('investmentGrowth'),
   br(),
   inputPanel(
-    numericInput('expenses', 'Monthly expenses post-retirement', 4000, min = 0),
+    align = "center",
     sliderInput('retirementLength', 'Length of retirement',
-                min = 0, max = 60, value = 30, step = 1, post = 'years')
+                min = 0, max = 60, value = 30, step = 1, post = 'years'),
+    numericInput('expenses', 'Monthly expenses post-retirement', 4000, min = 0),
+    actionButton('simulateRetirementClick', 'Simulate Retirement')
   ),
   verbatimTextOutput('epitaph'),
   dygraphOutput('retirement')
@@ -106,23 +115,58 @@ server <- function(input, output) {
     seq(from = input$startDate, to = input$endDate, by = 'month')
   })
   
-  simulatedRetirement = reactive({
-    req(input$expenses, input$retirementLength)
+  simulatedInvestments = reactiveVal(NULL)
+  simulatedRetirement = reactiveVal(NULL)
+  
+  disableSimulations = function() {
+    shinyjs::disable('simulateClick')
+    shinyjs::disable('simulateRetirementClick')
+  }
+  
+  enableSimulations = function() {
+    shinyjs::enable('simulateClick')
+    shinyjs::enable('simulateRetirementClick')
+  }
+  
+  simulateClick = reactive({
+    input$simulateClick
+  })
+  
+  simulateRetirementClick = reactive({
+    input$simulateRetirementClick
+  })
+  
+  observeEvent(simulateClick(), {
+    req(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
+    disableSimulations()
+    simulateInvestments(
+      input$initialInvestments,
+      input$investments,
+      length(monthsToRetire()),
+      input$growth
+    ) %>%
+      simulatedInvestments()
+    
+    enableSimulations()
+  })
+  
+  observeEvent(simulateRetirementClick(), {
+    req(simulatedInvestments(), input$expenses, input$retirementLength)
+    disableSimulations()
     initial = simulatedInvestments() %>%
       filter(time == max(time)) %>%
       select(value) %>%
       t() %>%
       as.vector()
     
-    simulateExpenses(initial, input$expenses, input$retirementLength * 12, input$growth)
-  }) %>% debounce(2500)
-  
-  simulatedInvestments = reactive({
-    req(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
-    simulateInvestments(input$initialInvestments, input$investments, length(monthsToRetire()), input$growth)
-  }) %>% debounce(2500)
+    simulateExpenses(initial, input$expenses, input$retirementLength * 12, input$growth) %>%
+      simulatedRetirement()
+    
+    enableSimulations()
+  })
   
   output$investmentsAtRetirement = function() {
+    req(simulatedInvestments())
     i = simulatedInvestments() %>%
       group_by(variable) %>%
       filter(time == max(time)) %>%
@@ -135,6 +179,7 @@ server <- function(input, output) {
   }
   
   output$investmentGrowth = renderDygraph({
+    req(simulatedInvestments())
     end = simulatedInvestments() %>%
       filter(time == max(time)) %>%
       summarize(median = median(value))
@@ -157,6 +202,7 @@ server <- function(input, output) {
   })
   
   output$retirement = renderDygraph({
+    req(simulatedRetirement())
     start = simulatedRetirement() %>%
       filter(time == min(time)) %>%
       summarize(median = median(value))
@@ -170,7 +216,7 @@ server <- function(input, output) {
     t = ts(frequency = 12, start = c(year(input$startDate), month(input$startDate)), data = s)
     dygraph(t, main = "Draw down during retirement") %>%
       dyAxis("y", label = "Value",
-             valueRange = c(0, max(2 * start$median, 2 * end$median)), axisLabelWidth=80,
+             valueRange = c(0, max(2 * start$median, 3 * end$median)), axisLabelWidth=80,
              axisLabelFormatter=htmlwidgets::JS(FUNC_JSFormatNumber),
              valueFormatter=htmlwidgets::JS(FUNC_JSFormatNumber)) %>%
       dyAxis("x", label = "Time", drawGrid = F) %>%
@@ -182,6 +228,7 @@ server <- function(input, output) {
   })
   
   output$epitaph = function() {
+    req(simulatedRetirement())
     s = simulatedRetirement() %>%
       group_by(variable) %>%
       filter(time == max(time)) %>%
@@ -190,7 +237,7 @@ server <- function(input, output) {
     q = quantile(s$value, c(0.1, 0.5, 0.9))
     s %<>% t() %>% as.vector()
     pass_percent = (sum(s > 0) / length(s)) %>% round(2)
-      
+    
     paste0("simulated investments at end of retirement",
            "\n10th percentile: $", q[1] %>% round() %>% format(big.mark=","),
            "\n50th percentile: $", q[2] %>% round() %>% format(big.mark=","),
