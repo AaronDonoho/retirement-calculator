@@ -213,7 +213,7 @@ server <- function(input, output) {
       tidyr::spread(key = variable, value = value) %>%
       select(-time)
     
-    t = ts(frequency = 12, start = c(year(input$startDate), month(input$startDate)), data = s)
+    t = ts(frequency = 12, start = c(year(input$endDate), month(input$endDate)), data = s)
     dygraph(t, main = "Draw down during retirement") %>%
       dyAxis("y", label = "Value",
              valueRange = c(0, max(2 * start$median, 3 * end$median)), axisLabelWidth=80,
