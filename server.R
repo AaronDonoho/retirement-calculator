@@ -1,112 +1,9 @@
 
 library(shiny)
 library(shinyjs)
-library(shinythemes)
 library(dygraphs)
 library(htmlwidgets)
 library(lubridate)
-library(ggplot2)
-library(reshape2)
-library(dplyr)
-library(scales)
-library(glue)
-
-n = 150
-
-info = 
-  glue::glue(
-    "
-This retirement calculator may help determine how much
-to save and spend to meet your retirement goals.
-
-Assumptions:
-  Growth has some random variance within a normal distribution
-  Higher growth means higher risk; this results in a wider spread in simulations
-  Value is always expressed in today's terms
-  {n} simulations are run
-")
-
-FUNC_JSFormatNumber <- "function(x) {return x.toString().replace(/(\\d)(?=(\\d{3})+(?!\\d))/g, '$1,')}"
-
-nextMonth = function(investments, growthPercent) {
-  if (investments <= 1) {
-    return(0)
-  }
-  growthRate = growthPercent / 100
-  investments * min(1.35, max(.75, rnorm(1, (1 + growthRate), growthRate * 3))) ^ (1/12) 
-}
-
-simulateInvestments = function(initial, investments, monthCount, growth) {
-  investmentsSumTable = list()
-  
-  for (x in 1:n) {
-    investmentsByMonth = c(initial)
-    investmentsSum = c(initial)
-    for (month in 1:monthCount) {
-      investmentsSum[length(investmentsSum)] = investmentsSum[length(investmentsSum)] + investments
-      nextMonth = nextMonth(investmentsSum[length(investmentsSum)], growth)
-      investmentsSum = c(investmentsSum, nextMonth)
-    }
-    investmentsSumTable[[x]] = investmentsSum
-  }
-  
-  z = data.frame(investmentsSumTable)
-  colnames(z) = seq(1, n)
-  z = cbind(z, time=0:monthCount)
-  z = melt(z, id.vars='time')
-  return(z)
-}
-
-simulateExpenses = function(initial, expenses, monthCount, growth) {
-  investmentsSumTable = list()
-  
-  for (i in 1:length(initial)) {
-    investmentsSum = c(initial[i])
-    for (month in 1:monthCount) {
-      investmentsSum[length(investmentsSum)] = max(0, investmentsSum[length(investmentsSum)] - expenses)
-      nextMonth = nextMonth(investmentsSum[length(investmentsSum)], growth)
-      investmentsSum = c(investmentsSum, nextMonth)
-    }
-    investmentsSumTable[[i]] = investmentsSum
-  }
-  
-  z = data.frame(investmentsSumTable)
-  colnames(z) = seq(1, length(initial))
-  z = cbind(z, time=0:monthCount)
-  z = melt(z, id.vars='time')
-  return(z)
-}
-
-ui <- fluidPage(
-  theme = shinytheme('yeti'),
-  tags$head(
-    tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
-  ),
-  useShinyjs(),
-  verbatimTextOutput('info'),
-  inputPanel(
-    align = "center",
-    dateInput('startDate', 'Current Date'),
-    dateInput('endDate', 'Retirement Date', value = "2049-12-31"),
-    numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
-    numericInput('investments', 'Monthly Contributions', 0, min = 0),
-    sliderInput('growth', 'Investment Annual Growth',
-                min = 0, max = 10, value = 7, step = 0.1, post = '%'),
-    actionButton('simulateClick', 'Simulate Contributions', style = "vertical-align: 'middle'")
-  ),
-  verbatimTextOutput('investmentsAtRetirement'),
-  dygraphOutput('investmentGrowth'),
-  br(),
-  inputPanel(
-    align = "center",
-    sliderInput('retirementLength', 'Length of retirement',
-                min = 0, max = 60, value = 30, step = 1, post = 'years'),
-    numericInput('expenses', 'Monthly expenses post-retirement', 4000, min = 0),
-    actionButton('simulateRetirementClick', 'Simulate Retirement')
-  ),
-  verbatimTextOutput('epitaph'),
-  dygraphOutput('retirement')
-)
 
 server <- function(input, output) {
   
@@ -139,8 +36,10 @@ server <- function(input, output) {
   observeEvent(simulateClick(), {
     req(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
     disableSimulations()
-    simulateInvestments(
-      input$initialInvestments,
+    fundsAtStart = rep.int(input$initialInvestments, n)
+    
+    simulateEachFund(
+      fundsAtStart,
       input$investments,
       length(monthsToRetire()),
       input$growth
@@ -153,13 +52,17 @@ server <- function(input, output) {
   observeEvent(simulateRetirementClick(), {
     req(simulatedInvestments(), input$expenses, input$retirementLength)
     disableSimulations()
-    initial = simulatedInvestments() %>%
+    fundsAtRetirement = simulatedInvestments() %>%
       filter(time == max(time)) %>%
       select(value) %>%
       t() %>%
       as.vector()
     
-    simulateExpenses(initial, input$expenses, input$retirementLength * 12, input$growth) %>%
+    simulateEachFund(
+      fundsAtRetirement,
+      -input$expenses,
+      input$retirementLength * 12,
+      input$growth) %>%
       simulatedRetirement()
     
     enableSimulations()
@@ -249,5 +152,3 @@ server <- function(input, output) {
     info
   }
 }
-
-shinyApp(ui = ui, server = server)
