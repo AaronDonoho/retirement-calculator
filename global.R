@@ -4,6 +4,8 @@ library(reshape2)
 library(dplyr)
 
 n = 150
+inflation = 1.025 ^ (1/12)
+devaluation = (1 / 1.025) ^ (1/12)
 
 info = 
   glue::glue(
@@ -12,9 +14,10 @@ info =
     to save and spend to meet your retirement goals.
     
     Assumptions:
-    Growth has some random variance within a normal distribution
-    Higher growth means higher risk; this results in a wider spread in simulations
-    Value is always expressed in today's terms
+    Growth has random variance within a normal distribution
+    Higher growth results in higher variance
+    A steady inflation of 2.5% is used to devalue investments
+    Currency is always expressed in terms of current value
     {n} simulations are run
     ")
 
@@ -25,14 +28,15 @@ nextMonth = function(investments, growthPercent) {
     return(0)
   }
   growthRate = growthPercent / 100
-  investments * min(1.35, max(.75, rnorm(1, (1 + growthRate), growthRate * 3))) ^ (1/12) 
+  investments * devaluation * min(10, max(.1, rnorm(1, (1 + growthRate), 2.5*growthRate^1.2))) ^ (1/12)
 }
 
-runSimulation <- function(initialFunds, contribution, monthCount, growth) {
+simulateFund <- function(initialFunds, contribution, monthCount, growth) {
   investmentsSum = c(initialFunds)
   for (month in 1:monthCount) {
-    investmentsSum[length(investmentsSum)] = max(0, investmentsSum[length(investmentsSum)] + contribution)
-    nextMonth = nextMonth(investmentsSum[length(investmentsSum)], growth)
+    investmentsSum[month] = 
+      max(0, investmentsSum[month] + contribution)
+    nextMonth = nextMonth(investmentsSum[month], growth)
     investmentsSum = c(investmentsSum, nextMonth)
   }
   return(investmentsSum)
@@ -48,7 +52,7 @@ toTimeSeriesTable <- function(investmentsSumTable, simulationCount, monthCount) 
 
 simulateEachFund = function(initialFunds, contribution, monthCount, growth) {
   initialFunds %>%
-    lapply(runSimulation, contribution, monthCount, growth) %>%
+    lapply(simulateFund, contribution, monthCount, growth) %>%
     toTimeSeriesTable(length(initialFunds), monthCount) %>%
     return()
 }

@@ -19,7 +19,7 @@ ui <- fluidPage(
     numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
     numericInput('investments', 'Monthly Contributions', 0, min = 0),
     sliderInput('growth', 'Investment Annual Growth',
-                min = 0, max = 10, value = 7, step = 0.1, post = '%'),
+                min = 0, max = 10, value = 9, step = 0.1, post = '%'),
     actionButton('simulateClick', 'Simulate Contributions', style = "vertical-align: 'middle'")
   ),
   verbatimTextOutput('investmentsAtRetirement'),
@@ -28,8 +28,8 @@ ui <- fluidPage(
   inputPanel(
     align = "center",
     sliderInput('retirementLength', 'Length of retirement',
-                min = 0, max = 60, value = 30, step = 1, post = 'years'),
-    numericInput('expenses', 'Monthly expenses post-retirement', 4000, min = 0),
+                min = 1, max = 60, value = 30, step = 1, post = 'years'),
+    numericInput('expenses', 'Monthly expenses post-retirement', 0, min = 0),
     actionButton('simulateRetirementClick', 'Simulate Retirement')
   ),
   verbatimTextOutput('epitaph'),

@@ -83,51 +83,57 @@ server <- function(input, output) {
   
   output$investmentGrowth = renderDygraph({
     req(simulatedInvestments())
-    end = simulatedInvestments() %>%
-      filter(time == max(time)) %>%
-      summarize(median = median(value))
-    s = simulatedInvestments() %>%
-      tidyr::spread(key = variable, value = value) %>%
-      select(-time)
-    
-    t = ts(frequency = 12, start = c(year(input$startDate), month(input$startDate)), data = s)
-    dygraph(t, main = "Investment Growth Prior To Retirement") %>%
-      dyAxis("y", label = "Value",
-             valueRange = c(0, 2 * end$median), axisLabelWidth=80,
-             axisLabelFormatter=htmlwidgets::JS(FUNC_JSFormatNumber),
-             valueFormatter=htmlwidgets::JS(FUNC_JSFormatNumber)) %>%
-      dyAxis("x", label = "Time", drawGrid = F) %>%
-      dyLegend(show = "never") %>%
-      dyOptions(colors = c("#0077b6","#593f62","#fe5f55", "#18f2b2", "#002A22",
-                           "#fcbf49", "#F6F740", "#04724D", "#A67DB8", "#A40E4C")) %>%
-      dyHighlight(highlightCircleSize = 1,
-                  highlightSeriesBackgroundAlpha = 0.3)
+    isolate({
+      end = simulatedInvestments() %>%
+        filter(time == max(time)) %>%
+        summarize(median = median(value))
+      s = simulatedInvestments() %>%
+        tidyr::spread(key = variable, value = value) %>%
+        select(-time)
+      
+      t = ts(frequency = 12, start = c(year(input$startDate), month(input$startDate)), data = s)
+      d = dygraph(t, main = "Investment Growth Prior To Retirement") %>%
+        dyAxis("y", label = "Value",
+               valueRange = c(0, 2 * end$median), axisLabelWidth=80,
+               axisLabelFormatter=htmlwidgets::JS(FUNC_JSFormatNumber),
+               valueFormatter=htmlwidgets::JS(FUNC_JSFormatNumber)) %>%
+        dyAxis("x", label = "Time", drawGrid = F) %>%
+        dyLegend(show = "never") %>%
+        dyOptions(colors = c("#0077b6","#593f62","#fe5f55", "#18f2b2", "#002A22",
+                             "#fcbf49", "#F6F740", "#04724D", "#A67DB8", "#A40E4C")) %>%
+        dyHighlight(highlightCircleSize = 1,
+                    highlightSeriesBackgroundAlpha = 0.3)
+    })
+    return(d)
   })
   
   output$retirement = renderDygraph({
     req(simulatedRetirement())
-    start = simulatedRetirement() %>%
-      filter(time == min(time)) %>%
-      summarize(median = median(value))
-    end = simulatedRetirement() %>%
-      filter(time == max(time)) %>%
-      summarize(median = median(value))
-    s = simulatedRetirement() %>%
-      tidyr::spread(key = variable, value = value) %>%
-      select(-time)
-    
-    t = ts(frequency = 12, start = c(year(input$endDate), month(input$endDate)), data = s)
-    dygraph(t, main = "Draw down during retirement") %>%
-      dyAxis("y", label = "Value",
-             valueRange = c(0, max(2 * start$median, 3 * end$median)), axisLabelWidth=80,
-             axisLabelFormatter=htmlwidgets::JS(FUNC_JSFormatNumber),
-             valueFormatter=htmlwidgets::JS(FUNC_JSFormatNumber)) %>%
-      dyAxis("x", label = "Time", drawGrid = F) %>%
-      dyLegend(show = "never") %>%
-      dyOptions(colors = c("#0077b6","#593f62","#fe5f55", "#18f2b2", "#002A22",
-                           "#fcbf49", "#F6F740", "#04724D", "#A67DB8", "#A40E4C")) %>%
-      dyHighlight(highlightCircleSize = 1,
-                  highlightSeriesBackgroundAlpha = 0.3)
+    isolate({
+      start = simulatedRetirement() %>%
+        filter(time == min(time)) %>%
+        summarize(median = median(value))
+      end = simulatedRetirement() %>%
+        filter(time == max(time)) %>%
+        summarize(median = median(value))
+      s = simulatedRetirement() %>%
+        tidyr::spread(key = variable, value = value) %>%
+        select(-time)
+      
+      t = ts(frequency = 12, start = c(year(input$endDate), month(input$endDate)), data = s)
+      d = dygraph(t, main = "Draw down during retirement") %>%
+        dyAxis("y", label = "Value",
+               valueRange = c(0, max(2 * start$median, 3 * end$median)), axisLabelWidth=80,
+               axisLabelFormatter=htmlwidgets::JS(FUNC_JSFormatNumber),
+               valueFormatter=htmlwidgets::JS(FUNC_JSFormatNumber)) %>%
+        dyAxis("x", label = "Time", drawGrid = F) %>%
+        dyLegend(show = "never") %>%
+        dyOptions(colors = c("#0077b6","#593f62","#fe5f55", "#18f2b2", "#002A22",
+                             "#fcbf49", "#F6F740", "#04724D", "#A67DB8", "#A40E4C")) %>%
+        dyHighlight(highlightCircleSize = 1,
+                    highlightSeriesBackgroundAlpha = 0.3)
+    })
+    return(d)
   })
   
   output$epitaph = function() {
