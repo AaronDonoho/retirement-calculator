@@ -1,9 +1,5 @@
 
-library(shiny)
-library(shinyjs)
 library(shinythemes)
-library(dygraphs)
-library(htmlwidgets)
 
 ui <- fluidPage(
   theme = shinytheme('yeti'),
