@@ -10,11 +10,11 @@ ui <- fluidPage(
   verbatimTextOutput('info'),
   inputPanel(
     align = "center",
-    dateInput('startDate', 'Current Date'),
-    dateInput('endDate', 'Retirement Date', value = "2049-12-31"),
+    numericInput('currentAge', 'Current Age', 35, min = 0, max = 120),
+    numericInput('retirementAge', 'Retirement Age', 65, min = 0, max = 120),
     numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
-    numericInput('investments', 'Monthly Contributions', 0, min = 0),
-    sliderInput('growth', 'Investment Annual Growth',
+    numericInput('contributions', 'Monthly Contributions', 0, min = 0),
+    sliderInput('investingGrowth', 'Investment Annual Growth',
                 min = 0, max = 10, value = 9, step = 0.1, post = '%'),
     actionButton('simulateClick', 'Simulate Contributions', style = "vertical-align: 'middle'")
   ),
@@ -23,9 +23,10 @@ ui <- fluidPage(
   br(),
   inputPanel(
     align = "center",
-    sliderInput('retirementLength', 'Length of retirement',
-                min = 1, max = 60, value = 30, step = 1, post = 'years'),
-    numericInput('expenses', 'Monthly expenses post-retirement', 0, min = 0),
+    numericInput('lifeExpectancy', 'Life Expectancy', 100, min = 0, max = 120),
+    numericInput('expenses', 'Monthly Expenses In Retirement', 0, min = 0),
+    sliderInput('retirementGrowth', 'Investment Annual Growth',
+                min = 0, max = 10, value = 6, step = 0.1, post = '%'),
     actionButton('simulateRetirementClick', 'Simulate Retirement')
   ),
   verbatimTextOutput('epitaph'),

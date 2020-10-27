@@ -2,11 +2,11 @@
 library(dygraphs)
 library(lubridate)
 
-server <- function(input, output) {
+server <- function(session, input, output) {
   
   monthsToRetire = reactive({
-    req(input$endDate > input$startDate)
-    seq(from = input$startDate, to = input$endDate, by = 'month')
+    req(input$retirementAge > input$currentAge)
+    seq(from = 12 * input$currentAge, to = 12 * input$retirementAge)
   })
   
   simulatedInvestments = reactiveVal(NULL)
@@ -30,24 +30,54 @@ server <- function(input, output) {
     input$simulateRetirementClick
   })
   
+  repairInputs = function() {
+    allValid = T
+    if (!validNumber(input$initialInvestments)) {
+      updateNumericInput(session, "initialInvestments", value = 0)
+      allValid = F
+    }
+    if (!validNumber(input$contributions)) {
+      updateNumericInput(session, "contributions", value = 0)
+      allValid = F
+    }
+    if (!validAge(input$currentAge)) {
+      updateNumericInput(session, "currentAge", value = 35)
+      allValid = F
+    }
+    if (!validAge(input$retirementAge)) {
+      updateNumericInput(session, "retirementAge", value = 65)
+      allValid = F
+    }
+    if (!validAge(input$lifeExpectancy)) {
+      updateNumericInput(session, "lifeExpectancy", value = 100)
+      allValid = F
+    }
+    if (!validNumber(input$expenses)) {
+      updateNumericInput(session, "expenses", value = 0)
+      allValid = F
+    }
+    return(allValid)
+  }
+  
   observeEvent(simulateClick(), {
-    req(input$initialInvestments, input$investments, monthsToRetire(), input$growth)
+    req(repairInputs(), input$initialInvestments, input$contributions, monthsToRetire(), input$investingGrowth)
     disableSimulations()
     fundsAtStart = rep.int(input$initialInvestments, n)
     
     simulateEachFund(
       fundsAtStart,
-      input$investments,
+      input$contributions,
       length(monthsToRetire()),
-      input$growth
+      input$investingGrowth
     ) %>%
+      mutate(time = input$currentAge + (time / 12)) %>%
       simulatedInvestments()
     
     enableSimulations()
   })
   
   observeEvent(simulateRetirementClick(), {
-    req(simulatedInvestments(), input$expenses, input$retirementLength)
+    req(repairInputs(), simulatedInvestments(), input$expenses, input$lifeExpectancy, input$retirementGrowth)
     disableSimulations()
     fundsAtRetirement = simulatedInvestments() %>%
       filter(time == max(time)) %>%
@@ -58,8 +88,10 @@ server <- function(input, output) {
     simulateEachFund(
       fundsAtRetirement,
       -input$expenses,
-      input$retirementLength * 12,
-      input$growth) %>%
+      (input$lifeExpectancy - input$retirementAge) * 12,
+      input$retirementGrowth
+    ) %>%
+      mutate(time = input$retirementAge + (time / 12)) %>%
       simulatedRetirement()
     
     enableSimulations()
@@ -85,12 +117,10 @@ server <- function(input, output) {
         filter(time == max(time)) %>%
         summarize(median = median(value), max = max(value))
       simulations = simulatedInvestments() %>%
-        tidyr::spread(key = variable, value = value) %>%
-        select(-time) %>%
-        ts(start = c(year(input$startDate), month(input$startDate)), frequency = 12)
+        tidyr::spread(key = variable, value = value)
       yRange = c(0, max(1.2 * input$initialInvestments, min(1.1 * end$max, 2 * end$median)))
     })
-    investmentGraph(simulations, yRange, "Investment Growth Prior To Retirement")
+    investmentGraph(simulations, yRange, "Simulations of Investment Growth Prior To Retirement")
   })
   
   output$retirement = renderDygraph({
@@ -103,12 +133,10 @@ server <- function(input, output) {
         filter(time == max(time)) %>%
         summarize(median = median(value))
       simulations = simulatedRetirement() %>%
-        tidyr::spread(key = variable, value = value) %>%
-        select(-time) %>%
-        ts(start = c(year(input$endDate), month(input$endDate)), frequency = 12)
+        tidyr::spread(key = variable, value = value)
       yRange = c(0, max(1.5 * start$max, 2 * end$median))
     })
-    investmentGraph(simulations, yRange, "Draw down during retirement")
+    investmentGraph(simulations, yRange, "Simulations of Draw Down During Retirement")
   })
   
   output$epitaph = function() {

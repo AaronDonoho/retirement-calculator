@@ -22,9 +22,23 @@ info =
     A steady inflation of 2.5% is used to devalue investments
     Currency is always expressed in terms of current value
     {n} simulations are run
+
+    How to use:
+    1. Enter values for current date and expected retirement date
+    2. Enter values for current investments and monthly contributions
+    3. Select a rate of growth that matches your expectations
+    A graph will display. Each line is a different simulation.
     ")
 
 FUNC_JSFormatNumber <- "function(x) {return x.toString().replace(/(\\d)(?=(\\d{3})+(?!\\d))/g, '$1,')}"
+
+validNumber = function(input) {
+  return(!is.na(input) && input >= 0)
+}
+
+validAge = function(input) {
+  return(!is.na(input) && input >= 0 && input <= 120)
+}
 
 nextMonth = function(investments, growthPercent) {
   if (investments <= 1) {
@@ -37,8 +51,7 @@ nextMonth = function(investments, growthPercent) {
 simulateFund <- function(initialFunds, contribution, monthCount, growth) {
   investmentsSum = c(initialFunds)
   for (month in 1:monthCount) {
-    investmentsSum[month] = 
-      max(0, investmentsSum[month] + contribution)
+    investmentsSum[month] = max(0, investmentsSum[month] + contribution)
     nextMonth = nextMonth(investmentsSum[month], growth)
     investmentsSum = c(investmentsSum, nextMonth)
   }
@@ -60,10 +73,10 @@ simulateEachFund = function(initialFunds, contribution, monthCount, growth) {
 
 investmentGraph <- function(data, yRange, title) {
   dygraph(data, main = title) %>%
-    dyAxis("y", label = "Value", valueRange = yRange, axisLabelWidth=80,
+    dyAxis("y", label = "Value of Investments", valueRange = yRange, axisLabelWidth=80,
            axisLabelFormatter=htmlwidgets::JS(FUNC_JSFormatNumber),
            valueFormatter=htmlwidgets::JS(FUNC_JSFormatNumber)) %>%
-    dyAxis("x", label = "Time", drawGrid = F) %>%
+    dyAxis("x", label = "Age", drawGrid = F) %>%
     dyLegend(show = "never") %>%
     dyOptions(colors = c("#0077b6","#593f62","#fe5f55", "#18f2b2", "#002A22",
                          "#fcbf49", "#F6F740", "#04724D", "#A67DB8", "#A40E4C")) %>%
