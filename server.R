@@ -3,12 +3,6 @@ library(dygraphs)
 library(lubridate)
 
 server <- function(session, input, output) {
-  
-  monthsToRetire = reactive({
-    req(input$retirementAge > input$currentAge)
-    seq(from = 12 * input$currentAge, to = 12 * input$retirementAge)
-  })
-  
   simulatedInvestments = reactiveVal(NULL)
   simulatedRetirement = reactiveVal(NULL)
   
@@ -30,44 +24,90 @@ server <- function(session, input, output) {
     input$simulateRetirementClick
   })
   
-  repairInputs = function() {
-    allValid = T
-    if (!validNumber(input$initialInvestments)) {
-      updateNumericInput(session, "initialInvestments", value = 0)
-      allValid = F
+  validateAtLeast = function(input, inputName, value) {
+    hideFeedback(inputName)
+    if (!validNumber(input) || input < value) {
+      showFeedbackDanger(inputName, text = paste("must be at least", value))
+      return(F)
     }
-    if (!validNumber(input$contributions)) {
-      updateNumericInput(session, "contributions", value = 0)
-      allValid = F
+    return(T)
+  }
+  
+  validateAge = function(input, inputName) {
+    hideFeedback(inputName)
+    if (!validAge(input)) {
+      showFeedbackDanger(inputName, text = "must be between 0 and 120")
+      return(F)
     }
-    if (!validAge(input$currentAge)) {
-      updateNumericInput(session, "currentAge", value = 35)
-      allValid = F
+    return(T)
+  }
+  
+  validateAgeAtLeast = function(input, inputName, compareInput, value) {
+    hideFeedback(inputName)
+    if (!validAge(input)) {
+      showFeedbackDanger(inputName, text = "must be between 0 and 120")
+      return(F)
+    } else if (validAge(compareInput) && input < compareInput) {
+      showFeedbackDanger(inputName, text = paste("must be at least", value))
+      return(F)  
     }
-    if (!validAge(input$retirementAge)) {
-      updateNumericInput(session, "retirementAge", value = 65)
-      allValid = F
+    return(T)
+  }
+  
+  validateAgeGreaterThan = function(input, inputName, compareInput, value) {
+    hideFeedback(inputName)
+    if (!validAge(input)) {
+      showFeedbackDanger(inputName, text = "must be between 0 and 120")
+      return(F)
+    } else if (validAge(compareInput) && input <= compareInput) {
+      showFeedbackDanger(inputName, text = paste("must be greater than", value))
+      return(F)  
     }
-    if (!validAge(input$lifeExpectancy)) {
-      updateNumericInput(session, "lifeExpectancy", value = 100)
-      allValid = F
+    return(T)
+  }
+  
+  repairInputsForContributions = function() {
+    allValid = all(
+      validateAtLeast(input$initialInvestments, "initialInvestments", 0),
+      validateAtLeast(input$contributions, "contributions", 0),
+      validateAge(input$currentAge, "currentAge"),
+      validateAgeGreaterThan(input$retirementAge, "retirementAge", input$currentAge, "current age")
+    )
+    if (!allValid) {
+      shinyFeedback::showToast(
+        "error",
+        "Please check your selections and try again"
+      )
     }
-    if (!validNumber(input$expenses)) {
-      updateNumericInput(session, "expenses", value = 0)
-      allValid = F
+    return(allValid)
+  }
+  
+  repairInputsForRetirement = function() {
+    allValid = all(
+      validateAtLeast(input$expenses, "expenses", 0),
+      validateAtLeast(input$additionalIncome, "additionalIncome", 0),
+      validateAge(input$retirementAge, "retirementAge"),
+      validateAgeAtLeast(input$additionalIncomeAge, "additionalIncomeAge", input$retirementAge, "retirement age"),
+      validateAgeGreaterThan(input$lifeExpectancy, "lifeExpectancy", input$retirementAge, "retirement age")
+    )
+    if (!allValid) {
+      shinyFeedback::showToast(
+        "error",
+        "Please check your selections and try again"
+      )
     }
     return(allValid)
   }
   
   observeEvent(simulateClick(), {
-    req(repairInputs(), input$initialInvestments, input$contributions, monthsToRetire(), input$investingGrowth)
+    req(repairInputsForContributions(), input$initialInvestments, input$contributions, input$investingGrowth)
     disableSimulations()
     fundsAtStart = rep.int(input$initialInvestments, n)
     
     simulateEachFund(
       fundsAtStart,
       input$contributions,
-      length(monthsToRetire()),
+      length(monthsBetweenYears(input$currentAge, input$retirementAge)),
       input$investingGrowth
     ) %>%
       mutate(time = input$currentAge + (time / 12)) %>%
@@ -77,7 +117,7 @@ server <- function(session, input, output) {
   })
   
   observeEvent(simulateRetirementClick(), {
-    req(repairInputs(), simulatedInvestments(), input$expenses, input$lifeExpectancy, input$retirementGrowth)
+    req(repairInputsForRetirement(), simulatedInvestments(), input$expenses, input$lifeExpectancy, input$retirementGrowth)
     disableSimulations()
     fundsAtRetirement = simulatedInvestments() %>%
       filter(time == max(time)) %>%
@@ -85,13 +125,49 @@ server <- function(session, input, output) {
       t() %>%
       as.vector()
     
-    simulateEachFund(
+    # assume there is only one phases
+    simOneLength = (input$lifeExpectancy - input$retirementAge) * 12
+    # check if there are two phases
+    if (input$lifeExpectancy > input$additionalIncomeAge &&
+        input$additionalIncomeAge > input$retirementAge) {
+      simOneLength = (input$additionalIncomeAge - input$retirementAge) * 12
+    }
+    
+    if (input$additionalIncomeAge == input$retirementAge) {
+      expenses = -input$expenses + input$additionalIncome
+    } else {
+      expenses = -input$expenses
+    }
+    
+    # simulate first phase of retirement 
+    r = simulateEachFund(
       fundsAtRetirement,
-      -input$expenses,
-      (input$lifeExpectancy - input$retirementAge) * 12,
+      expenses,
+      simOneLength,
       input$retirementGrowth
     ) %>%
-      mutate(time = input$retirementAge + (time / 12)) %>%
+      mutate(time = input$retirementAge * 12 + time)
+    
+    # simulate second phase of retirement, if necessary
+    if (input$lifeExpectancy > input$additionalIncomeAge &&
+        input$additionalIncomeAge > input$retirementAge) {
+      fundsBeforeSupplement = r %>%
+        filter(time == max(time)) %>%
+        select(value) %>%
+        t() %>%
+        as.vector()
+      s = simulateEachFund(
+        fundsBeforeSupplement,
+        -input$expenses + input$additionalIncome,
+        (input$lifeExpectancy - input$additionalIncomeAge) * 12 - 1,
+        input$retirementGrowth
+      ) %>%
+        mutate(time = input$additionalIncomeAge * 12 + time + 1)
+      r = bind_rows(r, s)
+    }
+    
+    r %>%
+      mutate(time = time / 12) %>%
       simulatedRetirement()
     
     enableSimulations()

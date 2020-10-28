@@ -1,6 +1,7 @@
 
 library(shiny)
 library(shinyjs)
+library(shinyFeedback)
 library(glue)
 library(reshape2)
 library(dplyr)
@@ -20,6 +21,7 @@ info =
     Growth has random variance within a normal distribution
     Higher growth results in higher variance
     A steady inflation of 2.5% is used to devalue investments
+    During retirement, excesss supplemental income is invested
     Currency is always expressed in terms of current value
     {n} simulations are run
 
@@ -40,6 +42,11 @@ validAge = function(input) {
   return(!is.na(input) && input >= 0 && input <= 120)
 }
 
+
+monthsBetweenYears = function(start, end) {
+  seq(from = 12 * start, to = 12 * end - 1)
+}
+
 nextMonth = function(investments, growthPercent) {
   if (investments <= 1) {
     return(0)
@@ -50,10 +57,11 @@ nextMonth = function(investments, growthPercent) {
 
 simulateFund <- function(initialFunds, contribution, monthCount, growth) {
   investmentsSum = c(initialFunds)
-  for (month in 1:monthCount) {
-    investmentsSum[month] = max(0, investmentsSum[month] + contribution)
-    nextMonth = nextMonth(investmentsSum[month], growth)
-    investmentsSum = c(investmentsSum, nextMonth)
+  for (month in 2:(monthCount+1)) {
+    investmentsSum = c(
+      investmentsSum,
+      max(0, nextMonth(investmentsSum[month-1], growth) + contribution)
+    )
   }
   return(investmentsSum)
 }
@@ -61,7 +69,7 @@ simulateFund <- function(initialFunds, contribution, monthCount, growth) {
 toTimeSeriesTable <- function(investmentsSumTable, simulationCount, monthCount) {
   data.frame(investmentsSumTable) %>%
     `colnames<-`(seq(1, simulationCount)) %>%
-    cbind(time = 0:monthCount) %>%
+    cbind(time = 0:(monthCount)) %>%
     reshape2::melt(id.vars='time')
 }
 
