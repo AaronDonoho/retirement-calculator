@@ -42,6 +42,47 @@ validAge = function(input) {
   return(!is.na(input) && input >= 0 && input <= 120)
 }
 
+validateAtLeast = function(input, inputName, value) {
+  hideFeedback(inputName)
+  if (!validNumber(input) || input < value) {
+    showFeedbackDanger(inputName, text = paste("must be at least", value))
+    return(F)
+  }
+  return(T)
+}
+
+validateAge = function(input, inputName) {
+  hideFeedback(inputName)
+  if (!validAge(input)) {
+    showFeedbackDanger(inputName, text = "must be between 0 and 120")
+    return(F)
+  }
+  return(T)
+}
+
+validateAgeAtLeast = function(input, inputName, compareInput, value) {
+  hideFeedback(inputName)
+  if (!validAge(input)) {
+    showFeedbackDanger(inputName, text = "must be between 0 and 120")
+    return(F)
+  } else if (validAge(compareInput) && input < compareInput) {
+    showFeedbackDanger(inputName, text = paste("must be at least", value))
+    return(F)  
+  }
+  return(T)
+}
+
+validateAgeGreaterThan = function(input, inputName, compareInput, value) {
+  hideFeedback(inputName)
+  if (!validAge(input)) {
+    showFeedbackDanger(inputName, text = "must be between 0 and 120")
+    return(F)
+  } else if (validAge(compareInput) && input <= compareInput) {
+    showFeedbackDanger(inputName, text = paste("must be greater than", value))
+    return(F)  
+  }
+  return(T)
+}
 
 monthsBetweenYears = function(start, end) {
   seq(from = 12 * start, to = 12 * end - 1)
