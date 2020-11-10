@@ -14,32 +14,33 @@ devaluation = (1 / 1.025) ^ (1/12)
 info = 
   glue::glue(
     "
-    This retirement calculator may help determine how much
+    This retirement simulator may help determine how much
     to save and spend to meet your retirement goals.
+    When simulations are run, a graph is displayed which
+    shows many colorful lines.  Each line is a separate
+    simulation of your investment portfolio over time.
     
-    Assumptions:
-    - Growth has random variance within a Laplace distribution
-    - Higher growth results in higher variance
-    - A steady inflation of 2.5% is used to devalue investments
-    - During retirement, excesss supplemental income is invested
-    - Currency is always expressed in terms of current value
+    Assumptions used by the simulations:
     - {n} simulations are run
+    - A steady inflation of 2.5% is used to devalue investments
+    - Currency is always expressed in terms of current value
+    - Growth has random variance within a Laplace distribution
+    - Post-Retirement uses values from the last Pre-Retirement simulation
+    - Post-Retirement, excesss supplemental income is invested
 
     Instructions for Pre-Retirement Simulator:
     1. Enter age and expected retirement age
     2. Enter current investments and monthly contributions
     3. Select a rate of growth matching your investment portfolio
     4. Click the 'Simulate Contributions' button
-       A graph will display. Each line is a different simulation.
 
     Instructions for Post-Retirement Simulator:
     1. Enter life expectancy
     2. Enter expected monthly expenses in retirement
     3. Enter age for supplementary income (e.g. Social Security),
        and expected income amount (make sure it's inflation-adjusted)
-    3. Select a rate of growth matching your investment portfolio
-    4. Click the 'Simulate Retirement' button
-       A graph will display. Each line is a different simulation.
+    4. Select a rate of growth matching your investment portfolio
+    5. Click the 'Simulate Retirement' button
     ")
 
 FUNC_JSFormatNumber <- "function(x) {return x.toString().replace(/(\\d)(?=(\\d{3})+(?!\\d))/g, '$1,')}"
@@ -127,7 +128,6 @@ nextMonth = function(investments, growthPercent) {
     return(0)
   }
   growthRate = growthPercent / 100
-  # change = rnorm(1, (1 + growthRate), 2 * growthRate ^ 1.2)
   change = rlaplace(1, (1 + growthRate), 2 * growthRate ^ 1.2)
   
   investments * devaluation * min(10, max(.1, change)) ^ (1 / 12)

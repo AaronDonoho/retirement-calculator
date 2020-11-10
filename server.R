@@ -7,21 +7,21 @@ server <- function(session, input, output) {
   simulatedRetirement = reactiveVal(NULL)
   
   disableSimulations = function() {
-    shinyjs::disable('simulateClick')
-    shinyjs::disable('simulateRetirementClick')
+    shinyjs::disable('simulatePreClick')
+    shinyjs::disable('simulatePostClick')
   }
   
   enableSimulations = function() {
-    shinyjs::enable('simulateClick')
-    shinyjs::enable('simulateRetirementClick')
+    shinyjs::enable('simulatePreClick')
+    shinyjs::enable('simulatePostClick')
   }
   
-  simulateClick = reactive({
-    input$simulateClick
+  simulatePreClick = reactive({
+    input$simulatePreClick
   })
   
-  simulateRetirementClick = reactive({
-    input$simulateRetirementClick
+  simulatePostClick = reactive({
+    input$simulatePostClick
   })
   
   repairInputsForContributions = function() {
@@ -58,21 +58,21 @@ server <- function(session, input, output) {
   }
   
   observe({
-    growth = input$investingGrowth
+    growth = input$preRetirementGrowth
     text = assetClassForGrowth(growth)
-    hideFeedback('investingGrowth')
-    showFeedback('investingGrowth', text = text, color = "#555555")
+    hideFeedback('preRetirementGrowth')
+    showFeedback('preRetirementGrowth', text = text, color = "#555555")
   })
   
   observe({
-    growth = input$retirementGrowth
+    growth = input$postRetirementGrowth
     text = assetClassForGrowth(growth)
-    hideFeedback('retirementGrowth')
-    showFeedback('retirementGrowth', text = text, color = "#555555")
+    hideFeedback('postRetirementGrowth')
+    showFeedback('postRetirementGrowth', text = text, color = "#555555")
   })
   
-  observeEvent(simulateClick(), {
-    req(repairInputsForContributions(), input$initialInvestments, input$contributions, input$investingGrowth)
+  observeEvent(simulatePreClick(), {
+    req(repairInputsForContributions(), input$initialInvestments, input$contributions, input$preRetirementGrowth)
     disableSimulations()
     fundsAtStart = rep.int(input$initialInvestments, n)
     
@@ -80,7 +80,7 @@ server <- function(session, input, output) {
       fundsAtStart,
       input$contributions,
       length(monthsBetweenYears(input$currentAge, input$retirementAge)),
-      input$investingGrowth
+      input$preRetirementGrowth
     ) %>%
       mutate(time = input$currentAge + (time / 12)) %>%
       simulatedInvestments()
@@ -88,8 +88,8 @@ server <- function(session, input, output) {
     enableSimulations()
   })
   
-  observeEvent(simulateRetirementClick(), {
-    req(repairInputsForRetirement(), simulatedInvestments(), input$expenses, input$lifeExpectancy, input$retirementGrowth)
+  observeEvent(simulatePostClick(), {
+    req(repairInputsForRetirement(), simulatedInvestments(), input$expenses, input$lifeExpectancy, input$postRetirementGrowth)
     disableSimulations()
     fundsAtRetirement = simulatedInvestments() %>%
       filter(time == max(time)) %>%
@@ -97,7 +97,7 @@ server <- function(session, input, output) {
       t() %>%
       as.vector()
     
-    # assume there is only one phases
+    # assume there is only one phase
     simOneLength = (input$lifeExpectancy - input$retirementAge) * 12
     # check if there are two phases
     if (input$lifeExpectancy > input$additionalIncomeAge &&
@@ -116,7 +116,7 @@ server <- function(session, input, output) {
       fundsAtRetirement,
       expenses,
       simOneLength,
-      input$retirementGrowth
+      input$postRetirementGrowth
     ) %>%
       mutate(time = input$retirementAge * 12 + time)
     
@@ -132,7 +132,7 @@ server <- function(session, input, output) {
         fundsBeforeSupplement,
         -input$expenses + input$additionalIncome,
         (input$lifeExpectancy - input$additionalIncomeAge) * 12 - 1,
-        input$retirementGrowth
+        input$postRetirementGrowth
       ) %>%
         mutate(time = input$additionalIncomeAge * 12 + time + 1)
       r = bind_rows(r, s)
@@ -145,7 +145,7 @@ server <- function(session, input, output) {
     enableSimulations()
   })
   
-  output$investmentsAtRetirement = function() {
+  output$investmentsAtRetirement = renderUI({
     req(simulatedInvestments())
     i = simulatedInvestments() %>%
       group_by(variable) %>%
@@ -153,10 +153,11 @@ server <- function(session, input, output) {
       select(value)
     q = quantile(i$value, c(0.1, 0.5, 0.9))
     paste0("simulated investments at retirement",
-           "\n10th percentile: $", q[1] %>% round() %>% format(big.mark=","),
-           "\n50th percentile: $", q[2] %>% round() %>% format(big.mark=","),
-           "\n90th percentile: $", q[3] %>% round() %>% format(big.mark=","))
-  }
+           "\n\n10th percentile: $", q[1] %>% round() %>% format(big.mark=","),
+           "\n\n50th percentile: $", q[2] %>% round() %>% format(big.mark=","),
+           "\n\n90th percentile: $", q[3] %>% round() %>% format(big.mark=",")) %>%
+      markdown()
+  })
   
   output$investmentGrowth = renderDygraph({
     req(simulatedInvestments())
@@ -168,7 +169,7 @@ server <- function(session, input, output) {
         tidyr::spread(key = variable, value = value)
       yRange = c(0, max(1.2 * input$initialInvestments, min(1.1 * end$max, 2 * end$median)))
     })
-    investmentGraph(simulations, yRange, "Simulations of Investment Growth Prior To Retirement")
+    investmentGraph(simulations, yRange, "Simulations of Investment Growth Pre-Retirement")
   })
   
   output$retirement = renderDygraph({
@@ -184,10 +185,10 @@ server <- function(session, input, output) {
         tidyr::spread(key = variable, value = value)
       yRange = c(0, max(1.5 * start$max, 2 * end$median))
     })
-    investmentGraph(simulations, yRange, "Simulations of Draw Down During Retirement")
+    investmentGraph(simulations, yRange, "Simulations of Drawdown Post-Retirement")
   })
   
-  output$epitaph = function() {
+  output$epitaph = renderUI({
     req(simulatedRetirement())
     s = simulatedRetirement() %>%
       group_by(variable) %>%
@@ -198,14 +199,15 @@ server <- function(session, input, output) {
     s %<>% t() %>% as.vector()
     pass_percent = (sum(s > 0) / length(s)) %>% round(2)
     
-    paste0("simulated investments at end of retirement",
-           "\n10th percentile: $", q[1] %>% round() %>% format(big.mark=","),
-           "\n50th percentile: $", q[2] %>% round() %>% format(big.mark=","),
-           "\n90th percentile: $", q[3] %>% round() %>% format(big.mark=","),
-           "\n", pass_percent * 100, "% of simulations had money remaining at the end")
-  }
+    paste0("simulated investments at end of life",
+           "\n\n10th percentile: $", q[1] %>% round() %>% format(big.mark=","),
+           "\n\n50th percentile: $", q[2] %>% round() %>% format(big.mark=","),
+           "\n\n90th percentile: $", q[3] %>% round() %>% format(big.mark=","),
+           "\n\n", pass_percent * 100, "% of simulations had enough money") %>%
+      markdown()
+  })
   
-  output$info = function() {
-    info
-  }
+  output$info = renderUI({
+    markdown(info)
+  })
 }

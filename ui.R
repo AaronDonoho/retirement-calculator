@@ -8,7 +8,7 @@ ui <- fluidPage(
     tags$link(rel = "stylesheet", type = "text/css", href = "styles.css")
   ),
   useShinyjs(),
-  verbatimTextOutput('info'),
+  uiOutput('info'),
   h2("Pre-Retirement"),
   inputPanel(
     align = "center",
@@ -16,24 +16,24 @@ ui <- fluidPage(
     numericInput('retirementAge', 'Retirement Age', 60, min = 0, max = 120),
     numericInput('initialInvestments', 'Initial Investments', 0, min = 0),
     numericInput('contributions', 'Monthly Contributions', 0, min = 0),
-    sliderInput('investingGrowth', 'Investment Annual Growth',
+    sliderInput('preRetirementGrowth', 'Investment Annual Growth',
                 min = 0, max = 10, value = 8, step = 0.1, post = '%'),
-    actionButton('simulateClick', 'Simulate Contributions', style = "vertical-align: 'middle'")
+    actionButton('simulatePreClick', 'Simulate Pre-Retirement', style = "vertical-align: 'middle'")
   ),
-  verbatimTextOutput('investmentsAtRetirement'),
+  uiOutput('investmentsAtRetirement'),
   dygraphOutput('investmentGrowth'),
   br(), br(), br(),
   h2("Post-Retirement"),
   inputPanel(
     align = "center",
     numericInput('lifeExpectancy', 'Life Expectancy', 100, min = 0, max = 120),
-    numericInput('additionalIncomeAge', 'Age at Start of Supplement', 62, min = 0, max = 120),
     numericInput('expenses', 'Monthly Expenses In Retirement', 0, min = 0),
+    numericInput('additionalIncomeAge', 'Age at Start of Supplement', 62, min = 0, max = 120),
     numericInput('additionalIncome', 'Supplemental Income', 0, min = 0),
-    sliderInput('retirementGrowth', 'Investment Annual Growth',
+    sliderInput('postRetirementGrowth', 'Investment Annual Growth',
                 min = 0, max = 10, value = 5, step = 0.1, post = '%'),
-    actionButton('simulateRetirementClick', 'Simulate Retirement')
+    actionButton('simulatePostClick', 'Simulate Post-Retirement')
   ),
-  verbatimTextOutput('epitaph'),
+  uiOutput('epitaph'),
   dygraphOutput('retirement')
 )
