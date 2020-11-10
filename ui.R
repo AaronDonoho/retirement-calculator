@@ -9,6 +9,7 @@ ui <- fluidPage(
   ),
   useShinyjs(),
   verbatimTextOutput('info'),
+  h2("Pre-Retirement"),
   inputPanel(
     align = "center",
     numericInput('currentAge', 'Current Age', 35, min = 0, max = 120),
@@ -21,7 +22,8 @@ ui <- fluidPage(
   ),
   verbatimTextOutput('investmentsAtRetirement'),
   dygraphOutput('investmentGrowth'),
-  br(),
+  br(), br(), br(),
+  h2("Post-Retirement"),
   inputPanel(
     align = "center",
     numericInput('lifeExpectancy', 'Life Expectancy', 100, min = 0, max = 120),

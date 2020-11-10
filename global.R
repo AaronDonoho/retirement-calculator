@@ -18,18 +18,28 @@ info =
     to save and spend to meet your retirement goals.
     
     Assumptions:
-    Growth has random variance within a normal distribution
-    Higher growth results in higher variance
-    A steady inflation of 2.5% is used to devalue investments
-    During retirement, excesss supplemental income is invested
-    Currency is always expressed in terms of current value
-    {n} simulations are run
+    - Growth has random variance within a Laplace distribution
+    - Higher growth results in higher variance
+    - A steady inflation of 2.5% is used to devalue investments
+    - During retirement, excesss supplemental income is invested
+    - Currency is always expressed in terms of current value
+    - {n} simulations are run
 
-    How to use:
-    1. Enter values for current date and expected retirement date
-    2. Enter values for current investments and monthly contributions
-    3. Select a rate of growth that matches your expectations
-    A graph will display. Each line is a different simulation.
+    Instructions for Pre-Retirement Simulator:
+    1. Enter age and expected retirement age
+    2. Enter current investments and monthly contributions
+    3. Select a rate of growth matching your investment portfolio
+    4. Click the 'Simulate Contributions' button
+       A graph will display. Each line is a different simulation.
+
+    Instructions for Post-Retirement Simulator:
+    1. Enter life expectancy
+    2. Enter expected monthly expenses in retirement
+    3. Enter age for supplementary income (e.g. Social Security),
+       and expected income amount (make sure it's inflation-adjusted)
+    3. Select a rate of growth matching your investment portfolio
+    4. Click the 'Simulate Retirement' button
+       A graph will display. Each line is a different simulation.
     ")
 
 FUNC_JSFormatNumber <- "function(x) {return x.toString().replace(/(\\d)(?=(\\d{3})+(?!\\d))/g, '$1,')}"
@@ -84,8 +94,32 @@ validateAgeGreaterThan = function(input, inputName, compareInput, value) {
   return(T)
 }
 
+assetClassForGrowth = function(growth) {
+  text = "stock index funds"
+  if (growth == 0) {
+    text = "cash"
+  } else if (growth < 1) {
+    text = "savings"
+  } else if (growth < 4) {
+    text = "savings/bonds mix"
+  } else if (growth < 6) {
+    text = "bond index funds"
+  } else if (growth < 9) {
+    text = "bond/stock mix"
+  }
+  return(text)
+}
+
 monthsBetweenYears = function(start, end) {
   seq(from = 12 * start, to = 12 * end - 1)
+}
+
+rlaplace = function(x, location, scale) {
+  sign = -1
+  if (rbinom(x, 1, .5) > .5) {
+    sign = 1
+  }
+  location + sign * scale / sqrt(2) * log(1 - runif(x, 0, 1))
 }
 
 nextMonth = function(investments, growthPercent) {
@@ -93,15 +127,18 @@ nextMonth = function(investments, growthPercent) {
     return(0)
   }
   growthRate = growthPercent / 100
-  investments * devaluation * min(10, max(.1, rnorm(1, (1 + growthRate), 2.5*growthRate^1.2))) ^ (1/12)
+  # change = rnorm(1, (1 + growthRate), 2 * growthRate ^ 1.2)
+  change = rlaplace(1, (1 + growthRate), 2 * growthRate ^ 1.2)
+  
+  investments * devaluation * min(10, max(.1, change)) ^ (1 / 12)
 }
 
 simulateFund <- function(initialFunds, contribution, monthCount, growth) {
   investmentsSum = c(initialFunds)
-  for (month in 2:(monthCount+1)) {
+  for (month in 2:(monthCount + 1)) {
     investmentsSum = c(
       investmentsSum,
-      max(0, nextMonth(investmentsSum[month-1], growth) + contribution)
+      max(0, nextMonth(investmentsSum[month - 1], growth) + contribution)
     )
   }
   return(investmentsSum)

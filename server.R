@@ -57,6 +57,20 @@ server <- function(session, input, output) {
     return(allValid)
   }
   
+  observe({
+    growth = input$investingGrowth
+    text = assetClassForGrowth(growth)
+    hideFeedback('investingGrowth')
+    showFeedback('investingGrowth', text = text, color = "#555555")
+  })
+  
+  observe({
+    growth = input$retirementGrowth
+    text = assetClassForGrowth(growth)
+    hideFeedback('retirementGrowth')
+    showFeedback('retirementGrowth', text = text, color = "#555555")
+  })
+  
   observeEvent(simulateClick(), {
     req(repairInputsForContributions(), input$initialInvestments, input$contributions, input$investingGrowth)
     disableSimulations()
